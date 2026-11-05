@@ -1,4 +1,4 @@
-const CACHE = "skins-v14";
+const CACHE = "skins-v15";
 const ASSETS = [
   "./",
   "./index.html",

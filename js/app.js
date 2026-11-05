@@ -3,12 +3,14 @@ const NAMES_KEY = "skins-names-v1";
 const STAKE_KEY = "skins-stake-v1";
 const ROUND_STAKE_KEY = "skins-round-stake-v1";
 const NINE_STAKE_KEY = "skins-nine-stake-v1";
-const NINES_KEY = "skins-nines-v1";
+const NINES_KEY = "skins-nines-v2";
 const SCORE_MAX = 15;
 const STAKE_MAX = 100000;
 const NINE = 9;
 
 // Every course uses the same scorecard, skins, round bet and First 9 / last 9.
+// The round pot and the two nines can all be on in the same round. They are
+// added into one Swish together with the skins.
 // A new course is { id, name, place, holes: [{ par, meters, line? }] }.
 // line only draws that hole's map. Back 9 is holes 10–18 when the course has them.
 const COURSES = [
@@ -488,7 +490,20 @@ function selfTest() {
   check("nine tied lead gets 25", nineLead.shares.length === 2 && nineLead.shares.every((share) => share.from === 2 && share.amount === 25));
   const ninesOnly = payRounds([0, 0, 0], 10, [placeBet([-1, 0, 0], 50).shares, placeBet([0, -1, 0], 50).shares]);
   const ninesPay = (from, to) => ninesOnly.payments.find((payment) => payment.from === from && payment.to === to);
-  check("nines replace the round", ninesOnly.payments.length === 2 && ninesPay(2, 0) && ninesPay(2, 0).amount === 25 && ninesPay(2, 1) && ninesPay(2, 1).amount === 25);
+  check("two nines add", ninesOnly.payments.length === 2 && ninesPay(2, 0) && ninesPay(2, 0).amount === 25 && ninesPay(2, 1) && ninesPay(2, 1).amount === 25);
+  const both = payRounds([1, 0, 0], 10, [
+    placeBet([-1, 0, 0], 200).shares,
+    placeBet([-1, 0, 0], 50).shares,
+    placeBet([0, 0, 0], 50).shares,
+  ]);
+  const bothPay = (from, to) => both.payments.find((payment) => payment.from === from && payment.to === to);
+  check("round and nines add", both.payments.length === 2 && bothPay(1, 0) && bothPay(1, 0).amount === 135 && bothPay(2, 0) && bothPay(2, 0).amount === 135);
+  const mixed = payRounds([0, 0, 0], 10, [
+    placeBet([-2, 0, 1], 100).shares,
+    placeBet([0, -3, 0], 50).shares,
+  ]);
+  const mixedPay = (from, to) => mixed.payments.find((payment) => payment.from === from && payment.to === to);
+  check("round and nine net across winners", mixed.payments.length === 2 && mixedPay(2, 0) && mixedPay(2, 0).amount === 75 && mixedPay(2, 1) && mixedPay(2, 1).amount === 50);
 
   const spanHoles = Array.from({ length: 11 }, () => ({ par: 3 }));
   const spanScores = spanHoles.map(() => [3]);
@@ -549,7 +564,7 @@ const state = {
   stakeText: "10",
   roundStake: 100,
   roundText: "100",
-  nines: false,
+  nines: true,
   nineStake: 50,
   nineText: "50",
   dialog: null,
@@ -599,7 +614,8 @@ function loadMemory() {
       state.nineStake = nineStake;
       state.nineText = String(nineStake);
     }
-    state.nines = localStorage.getItem(NINES_KEY) === "1";
+    const savedNines = localStorage.getItem(NINES_KEY);
+    state.nines = savedNines == null ? true : savedNines === "1";
   } catch (err) {
     /* storage can be blocked */
   }
@@ -706,7 +722,8 @@ function canStart() {
     && state.names.length === state.count
     && state.names.every((name) => name.trim())
     && readStake(state.stakeText) != null
-    && (state.nines ? readStake(state.nineText) != null : readStake(state.roundText) != null);
+    && readStake(state.roundText) != null
+    && (!state.nines || readStake(state.nineText) != null);
 }
 
 function sheetEl() {
@@ -789,9 +806,8 @@ function actuallyStart() {
   const course = currentCourse();
   if (!course || stake == null) return;
   if (!courseHasNines(course)) state.nines = false;
-  if (state.nines) {
-    if (nineStake == null) return;
-  } else if (roundStake == null) return;
+  if (roundStake == null) return;
+  if (state.nines && nineStake == null) return;
   const names = state.names.map((name) => name.trim());
   state.names = names;
   state.count = names.length;
@@ -979,10 +995,10 @@ function holeNav() {
 }
 
 function titleFor() {
-  if (state.screen === "hole") return `Skins · Hål ${state.hole + 1}`;
-  if (state.screen === "result") return "Skins · Resultat";
-  if (state.screen === "players" && currentCourse()) return `Skins · ${currentCourse().name}`;
-  return "Skins";
+  if (state.screen === "hole") return `ESS Skins · Hål ${state.hole + 1}`;
+  if (state.screen === "result") return "ESS Skins · Resultat";
+  if (state.screen === "players" && currentCourse()) return `ESS Skins · ${currentCourse().name}`;
+  return "ESS Skins";
 }
 
 function courseCard(course) {
@@ -1013,7 +1029,12 @@ function homeView() {
   const saved = loadRound();
   return `<div class="screen home">
     ${basketSVG()}
-    <h1 class="wordmark">Skins</h1>
+    <div class="monogram">
+      <p class="initial"><b>E</b><span>Emil</span></p>
+      <p class="initial"><b>S</b><span>Salle</span></p>
+      <p class="initial"><b>S</b><span>Simon</span></p>
+    </div>
+    <h1 class="wordmark">ESS Skins</h1>
     <div class="rule"></div>
     <p class="tagline">Discgolf scorekort</p>
     ${saved ? resumeCard(saved) : ""}
@@ -1044,7 +1065,7 @@ function playersView(course) {
 
   return `<div class="screen paper setup">
     <div class="player-scroll">
-      <button type="button" class="back" data-action="home">${chevron(-1)}<span>Skins</span></button>
+      <button type="button" class="back" data-action="home">${chevron(-1)}<span>ESS Skins</span></button>
       <p class="kicker">${esc(course.name)}</p>
       <h1>Hur många spelar?</h1>
       <div class="count-grid" role="group" aria-label="Antal spelare">${counts}</div>
@@ -1056,9 +1077,9 @@ function playersView(course) {
         <input id="stake-input" inputmode="numeric" enterkeyhint="go" maxlength="6" value="${esc(state.stakeText)}" autocomplete="off" spellcheck="false">
         <span>kr</span>
       </label>
-      <label class="stake${state.nines ? " is-off" : ""}">
+      <label class="stake">
         <span>Rundan är värd</span>
-        <input id="round-input" inputmode="numeric" enterkeyhint="go" maxlength="6" value="${esc(state.roundText)}" autocomplete="off" spellcheck="false" ${state.nines ? "disabled" : ""}>
+        <input id="round-input" inputmode="numeric" enterkeyhint="go" maxlength="6" value="${esc(state.roundText)}" autocomplete="off" spellcheck="false">
         <span>kr</span>
       </label>
       ${courseHasNines(course) ? `<div class="nines-row">
@@ -1071,7 +1092,7 @@ function playersView(course) {
           <span>kr</span>
         </label>
       </div>
-      ${state.nines ? `<p class="note bet-note">Rundan räknas inte. Varje nia spelas om beloppet.</p>` : ""}` : ""}
+      ${state.nines ? `<p class="note bet-note">Rundan och niorna räknas båda.</p>` : ""}` : ""}
       <button type="button" id="start-btn" class="primary" data-action="start" ${canStart() ? "" : "disabled"}>Starta</button>
     </div>
   </div>`;
@@ -1270,11 +1291,12 @@ function resultView(course) {
   }).join("");
   const parCells = course.holes.map((hole) => `<td>${hole.par}</td>`).join("");
   const money = settlement(result.won, state.stake);
+  const roundBet = placeBet(toPars, state.roundStake);
   const frontBet = state.nines ? placeBet(state.names.map((_, player) => nineToPar(state.scores, course.holes, player, 0, NINE - 1)), state.nineStake) : { shares: [] };
   const backBet = state.nines ? placeBet(state.names.map((_, player) => nineToPar(state.scores, course.holes, player, NINE, NINE * 2 - 1)), state.nineStake) : { shares: [] };
-  const cleared = state.nines
-    ? payRounds(result.won, state.stake, [frontBet.shares, backBet.shares])
-    : swishPayments(result.won, state.stake, toPars, state.roundStake);
+  const groups = [roundBet.shares];
+  if (state.nines) groups.push(frontBet.shares, backBet.shares);
+  const cleared = payRounds(result.won, state.stake, groups);
   const nets = state.names.map((name, index) => `<li><span>${esc(name)}</span><b>${skinPhrase(money.net[index])}</b></li>`).join("");
   const pays = cleared.payments.map((payment) => {
     const from = state.names[payment.from];
@@ -1282,11 +1304,9 @@ function resultView(course) {
     return `<li>${esc(from)} swishar ${formatKr(payment.amount)} till ${esc(to)}</li>`;
   }).join("");
   const pending = allFilled ? "" : `<p class="note">Räknat på skins som redan är vunna.</p>`;
-  const included = state.nines
-    ? `${placeNote(frontBet.shares, state.nineStake, "First 9")}${placeNote(backBet.shares, state.nineStake, "Last 9")}`
-    : placeNote(cleared.shares, state.roundStake);
+  const included = `${placeNote(roundBet.shares, state.roundStake)}${state.nines ? `${placeNote(frontBet.shares, state.nineStake, "First 9")}${placeNote(backBet.shares, state.nineStake, "Last 9")}` : ""}`;
   const worth = state.nines
-    ? `<p class="note">First 9 och last 9 är värda ${formatKr(state.nineStake)} var.</p>`
+    ? `<p class="note">Rundan är värd ${formatKr(state.roundStake)}. First 9 och last 9 är värda ${formatKr(state.nineStake)} var.</p>`
     : `<p class="note">Rundan är värd ${formatKr(state.roundStake)}</p>`;
   const outcome = cleared.payments.length
     ? `<ul class="pay-list">${pays}</ul>${included}`
@@ -1408,7 +1428,6 @@ function onClick(event) {
   }
   if (action === "nines") {
     state.nines = !state.nines;
-    if (!state.nines && readStake(state.roundText) == null) state.roundText = String(state.roundStake);
     render();
     return;
   }

@@ -1,7 +1,7 @@
 {
-  "name": "Skins",
-  "short_name": "Skins",
-  "description": "Discgolf scorekort för skins.",
+  "name": "ESS Skins",
+  "short_name": "ESS Skins",
+  "description": "Discgolf scorekort för Emil, Salle och Simon.",
   "version": "2.0",
   "start_url": "./",
   "scope": "./",
