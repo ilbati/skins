@@ -1,9 +1,10 @@
-const CACHE = "skins-v16";
+const CACHE = "skins-v17";
 const ASSETS = [
   "./",
   "./index.html",
-  "./css/app.css?v=16",
-  "./js/app.js?v=16",
+  "./css/app.css?v=17",
+  "./js/app.js?v=17",
+  "./img/ess-logo.jpg",
   "./manifest.json",
   "./icons/favicon.svg",
   "./icons/icon-192.png",

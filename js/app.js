@@ -1028,15 +1028,11 @@ function resumeCard(saved) {
 function homeView() {
   const saved = loadRound();
   return `<div class="screen home">
-    ${basketSVG()}
-    <div class="monogram">
-      <p class="initial"><b>E</b><span>Emil</span></p>
-      <p class="initial"><b>S</b><span>Salle</span></p>
-      <p class="initial"><b>S</b><span>Simon</span></p>
-    </div>
-    <h1 class="wordmark">ESS Skins</h1>
-    <div class="rule"></div>
-    <p class="tagline">Discgolf scorekort</p>
+    <img class="home-bg" src="img/ess-logo.jpg" alt="">
+    <h1 class="wordmark ess-logo">
+      <img src="img/ess-logo.jpg" alt="">
+      <span class="visually-hidden">ESS Skins</span>
+    </h1>
     ${saved ? resumeCard(saved) : ""}
     <p class="kicker">Välj layout</p>
     <div class="layouts">${COURSES.map(courseCard).join("")}</div>
