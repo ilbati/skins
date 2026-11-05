@@ -1,9 +1,9 @@
-const CACHE = "skins-v15";
+const CACHE = "skins-v16";
 const ASSETS = [
   "./",
   "./index.html",
-  "./css/app.css",
-  "./js/app.js",
+  "./css/app.css?v=16",
+  "./js/app.js?v=16",
   "./manifest.json",
   "./icons/favicon.svg",
   "./icons/icon-192.png",
@@ -16,7 +16,11 @@ const ASSETS = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE).then((cache) => Promise.all(ASSETS.map(async (url) => {
+      const response = await fetch(url, { cache: "reload" });
+      if (!response.ok) throw new Error(url);
+      await cache.put(url, response);
+    }))).then(() => self.skipWaiting())
   );
 });
 
@@ -31,7 +35,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: "no-store" })
       .then((response) => {
         const copy = response.clone();
         caches.open(CACHE).then((cache) => cache.put(event.request, copy)).catch(() => {});
