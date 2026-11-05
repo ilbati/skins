@@ -1028,11 +1028,8 @@ function resumeCard(saved) {
 function homeView() {
   const saved = loadRound();
   return `<div class="screen home">
-    <img class="home-bg" src="img/ess-logo.jpg" alt="">
-    <h1 class="wordmark ess-logo">
-      <img src="img/ess-logo.jpg" alt="">
-      <span class="visually-hidden">ESS Skins</span>
-    </h1>
+    <img class="home-bg" src="img/ess-bg.jpg" alt="">
+    <h1 class="visually-hidden">ESS Skins</h1>
     ${saved ? resumeCard(saved) : ""}
     <p class="kicker">Välj layout</p>
     <div class="layouts">${COURSES.map(courseCard).join("")}</div>
