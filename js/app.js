@@ -64,6 +64,56 @@ const COURSES = [
       { par: 3, meters: 96, line: [[59.863973, 16.039892], [59.864505, 16.040101], [59.864737, 16.040192]] },
     ],
   },
+  {
+    id: "stimmerbo-bla",
+    name: "Stimmerbo blå",
+    place: "Smedjebacken",
+    holes: [
+      { par: 4, meters: 126 },
+      { par: 3, meters: 85 },
+      { par: 3, meters: 89 },
+      { par: 5, meters: 201 },
+      { par: 4, meters: 125 },
+      { par: 3, meters: 90 },
+      { par: 3, meters: 102 },
+      { par: 4, meters: 162 },
+      { par: 3, meters: 95 },
+      { par: 3, meters: 87 },
+      { par: 3, meters: 80 },
+      { par: 3, meters: 98 },
+      { par: 4, meters: 202 },
+      { par: 4, meters: 150 },
+      { par: 3, meters: 80 },
+      { par: 4, meters: 150 },
+      { par: 3, meters: 75 },
+      { par: 3, meters: 95 },
+    ],
+  },
+  {
+    id: "kolback-svar",
+    name: "Kolbäck svår",
+    place: "Kolbäck",
+    holes: [
+      { par: 4, meters: 142 },
+      { par: 3, meters: 112 },
+      { par: 4, meters: 140 },
+      { par: 4, meters: 165 },
+      { par: 3, meters: 70 },
+      { par: 4, meters: 180 },
+      { par: 3, meters: 88 },
+      { par: 3, meters: 112 },
+      { par: 3, meters: 68 },
+      { par: 3, meters: 80 },
+      { par: 3, meters: 130 },
+      { par: 3, meters: 88 },
+      { par: 3, meters: 80 },
+      { par: 3, meters: 62 },
+      { par: 3, meters: 85 },
+      { par: 3, meters: 102 },
+      { par: 4, meters: 187 },
+      { par: 4, meters: 180 },
+    ],
+  },
 ];
 
 // First tap on an empty hole: left is one under par, right is par.
@@ -133,13 +183,18 @@ function formatKr(amount) {
   return `${new Intl.NumberFormat("sv-SE").format(amount)}\u00a0kr`;
 }
 
-function readStake(value) {
+function readStake(value, min = 1) {
   if (typeof value === "number" && !Number.isInteger(value)) return null;
   const text = String(value == null ? "" : value).trim().replace(/\s/g, "");
   if (!/^\d+$/.test(text)) return null;
   const stake = Number(text);
-  if (stake < 1 || stake > STAKE_MAX) return null;
+  if (stake < min || stake > STAKE_MAX) return null;
   return stake;
+}
+
+// The round pot may be 0 kr so First 9 and last 9 can be played on their own.
+function readRoundStake(value) {
+  return readStake(value, 0);
 }
 
 function toParClass(diff) {
@@ -522,6 +577,17 @@ function selfTest() {
   check("later hole stays out", toParThrough([[2, 3], [2, 5]], pars, 0, 0) === -1);
   check("stake 10", readStake("10") === 10 && readStake(10) === 10);
   check("stake rejects empty", readStake("") == null && readStake("0") == null && readStake("1.5") == null && readStake("100001") == null);
+  check("round allows zero", readRoundStake("0") === 0 && readRoundStake(0) === 0 && readRoundStake("") == null);
+  check("zero round pays nothing", placeBet([-2, 0, 1], 0).shares.length === 0);
+  const zeroRound = payRounds([0, 0, 0], 10, [
+    placeBet([-1, 0, 1], 0).shares,
+    placeBet([-2, 0, 1], 50).shares,
+  ]);
+  check("zero total leaves the nine", zeroRound.payments.length === 1 && zeroRound.payments[0].from === 2 && zeroRound.payments[0].to === 0 && zeroRound.payments[0].amount === 50);
+  const stimmerbo = COURSES.find((course) => course.id === "stimmerbo-bla");
+  const kolback = COURSES.find((course) => course.id === "kolback-svar");
+  check("stimmerbo blå", stimmerbo && stimmerbo.holes.length === 18 && coursePar(stimmerbo) === 62 && courseMeters(stimmerbo) === 2092);
+  check("kolbäck svår", kolback && kolback.holes.length === 18 && coursePar(kolback) === 60 && courseMeters(kolback) === 2071);
 
   const names = ["A", "B"];
   const scores = COURSES[0].holes.map(() => [null, null]);
@@ -604,7 +670,7 @@ function loadMemory() {
       state.stake = stake;
       state.stakeText = String(stake);
     }
-    const roundStake = readStake(localStorage.getItem(ROUND_STAKE_KEY));
+    const roundStake = readRoundStake(localStorage.getItem(ROUND_STAKE_KEY));
     if (roundStake != null) {
       state.roundStake = roundStake;
       state.roundText = String(roundStake);
@@ -632,7 +698,7 @@ function rememberStake(stake) {
 }
 
 function rememberBets() {
-  const roundStake = readStake(state.roundText);
+  const roundStake = readRoundStake(state.roundText);
   const nineStake = readStake(state.nineText);
   if (roundStake != null) {
     state.roundStake = roundStake;
@@ -676,7 +742,7 @@ function validRound(data) {
   if (data.screen !== "hole" && data.screen !== "result") return false;
   if (!Number.isInteger(data.hole) || data.hole < 0 || data.hole >= course.holes.length) return false;
   if (data.stake != null && readStake(data.stake) == null) return false;
-  if (data.roundStake != null && readStake(data.roundStake) == null) return false;
+  if (data.roundStake != null && readRoundStake(data.roundStake) == null) return false;
   if (data.nineStake != null && readStake(data.nineStake) == null) return false;
   if (data.nines != null && typeof data.nines !== "boolean") return false;
   if (data.nines === true && (!courseHasNines(course) || readStake(data.nineStake) == null)) return false;
@@ -722,7 +788,7 @@ function canStart() {
     && state.names.length === state.count
     && state.names.every((name) => name.trim())
     && readStake(state.stakeText) != null
-    && readStake(state.roundText) != null
+    && readRoundStake(state.roundText) != null
     && (!state.nines || readStake(state.nineText) != null);
 }
 
@@ -801,7 +867,7 @@ function setCount(count) {
 
 function actuallyStart() {
   const stake = readStake(state.stakeText);
-  const roundStake = readStake(state.roundText);
+  const roundStake = readRoundStake(state.roundText);
   const nineStake = readStake(state.nineText);
   const course = currentCourse();
   if (!course || stake == null) return;
@@ -847,7 +913,7 @@ function resume() {
   state.screen = data.screen;
   state.stake = data.stake == null ? 10 : readStake(data.stake);
   state.stakeText = String(state.stake);
-  state.roundStake = data.roundStake == null ? 100 : readStake(data.roundStake);
+  state.roundStake = data.roundStake == null ? 100 : readRoundStake(data.roundStake);
   state.roundText = String(state.roundStake);
   state.nines = data.nines === true;
   state.nineStake = data.nineStake == null ? 50 : readStake(data.nineStake);
@@ -1085,7 +1151,7 @@ function playersView(course) {
           <span>kr</span>
         </label>
       </div>
-      ${state.nines ? `<p class="note bet-note">Rundan och niorna räknas båda.</p>` : ""}` : ""}
+      ${state.nines ? `<p class="note bet-note">${readRoundStake(state.roundText) === 0 ? "Totalen är 0 kr. Bara niorna betalas utöver skinsen." : "Rundan och niorna räknas båda."}</p>` : ""}` : ""}
       <button type="button" id="start-btn" class="primary" data-action="start" ${canStart() ? "" : "disabled"}>Starta</button>
     </div>
   </div>`;
@@ -1471,6 +1537,12 @@ function onInput(event) {
     if (event.target.id === "nine-input") state.nineText = event.target.value;
     const button = document.getElementById("start-btn");
     if (button) button.disabled = !canStart();
+    const note = document.querySelector(".bet-note");
+    if (note && event.target.id === "round-input") {
+      note.textContent = readRoundStake(state.roundText) === 0
+        ? "Totalen är 0 kr. Bara niorna betalas utöver skinsen."
+        : "Rundan och niorna räknas båda.";
+    }
     return;
   }
   const field = event.target.closest("[data-name-index]");
